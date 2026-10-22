@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BOTHO</title>
+    
+    <!-- Website Icon -->
+    <!-- <link rel="icon" type="image/png" href="./assets/logo_blue_1.png"> -->
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --primary: #A259FF;
+            --primary-hover: #8e44ef;
+            --dark: #000000;
+            --light: #ffffff;
+            --danger: #ff3b30;
+            --glass-bg: rgba(0, 0, 0, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--dark);
+            color: var(--light);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100dvh; 
+            touch-action: none;
+        }
+
+        /* Loading Screen */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--dark);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.4s ease;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(162, 89, 255, 0.2);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        #loader p {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            letter-spacing: 0.5px;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Top Bar Container */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: max(20px, env(safe-area-inset-top)) 20px 20px;
+            display: flex;
+            justify-content: flex-start;
+            z-index: 160;
+            pointer-events: none;
+        }
+
+        /* Glass Back Button */
+        #back-button {
+            width: 44px;
+            height: 44px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-decoration: none;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            pointer-events: auto;
+        }
+        
+        #back-button:active { 
+            transform: scale(0.9);
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        /* Main Booth Area */
+        #booth-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+            overflow: hidden;
+            width: 100%;
+            /* Removed the large padding-bottom so the camera can stretch fully */
+            padding-bottom: 0; 
+        }
+        #input-video { display: none; }
+
+        #output-canvas {
+            /* Force the canvas to stretch to the edges */
+            width: 100%;
+            height: 100%;
+            /* Cover ensures the video fills the screen without stretching awkwardly */
+            object-fit: cover; 
+            /* Optional: Add a slight scale if you want the 4:5 frame to appear even larger */
+            /* transform: scale(1.05); */
+        }
+
+        /* UI Controls Overlay */
+        #controls {
+            position: absolute;
+            bottom: max(30px, env(safe-area-inset-bottom));
+            left: 0;
+            width: 100%;
+            display: grid;
+            /* Creates 3 columns: side columns take up equal space, center sizes to the button */
+            grid-template-columns: 1fr auto 1fr; 
+            align-items: center;
+            justify-items: center;
+            padding: 0 20px;
+            z-index: 150;
+            pointer-events: none;
+        }
+
+        @media (min-width: 768px) {
+            #controls { bottom: 60px; } 
+            #booth-container { padding-bottom: 140px; }
+        }
+
+        /* Base floating button style */
+        .glass-btn {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            color: white;
+        }
+
+        .glass-btn:active {
+            transform: scale(0.92);
+        }
+
+        /* Secondary actions (Swap) */
+        .btn-small {
+            width: 48px;
+            height: 48px;
+        }
+
+        /* Main action buttons (Photo / Video) */
+        .btn-action {
+            width: 68px;
+            height: 68px;
+        }
+
+        .btn-action.photo {
+            background: rgba(255, 255, 255, 0.9);
+            border: 4px solid rgba(255, 255, 255, 0.4);
+            background-clip: padding-box;
+            color: var(--dark);
+        }
+
+        .btn-action.video {
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid white;
+        }
+
+        /* Recording Animation */
+        .recording {
+            background: var(--danger) !important;
+            border-color: rgba(255, 59, 48, 0.4) !important;
+            animation: pulse 2s infinite;
+        }
+        
+        .recording i { 
+            color: white !important; 
+            fill: white !important; 
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); }
+            70% { box-shadow: 0 0 0 20px rgba(255, 59, 48, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+        }
+
+        /* Countdown Overlay */
+        #countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 120px;
+            font-weight: 800;
+            color: white;
+            text-shadow: 0 4px 24px rgba(0,0,0,0.6);
+            z-index: 50;
+            display: none;
+            pointer-events: none;
+        }
+
+        /* Flash Animation */
+        #flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 100;
+            transition: opacity 0.1s ease-out;
+        }
+
+        /* Result Modal */
+        #result-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85); /* Frosted background */
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            padding: 20px;
+        }
+
+        #result-modal.open { 
+            opacity: 1; 
+            visibility: visible; 
+        }
+
+        .result-media {
+            max-width: 100%;
+            max-height: 65vh;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            object-fit: contain;
+            display: none;
+            transform: translateY(20px);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        #result-modal.open .result-media {
+            transform: translateY(0);
+        }
+
+        /* Modal Actions - Elegant Style */
+        .modal-actions {
+            margin-top: 25px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .action-btn {
+            background: white;
+            color: black;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.2s ease;
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        .action-btn.secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .action-btn.highlight {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 15px rgba(162, 89, 255, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="spinner"></div>
+        <p>Starting Camera...</p>
+    </div>
+
+    <!-- Main Booth -->
+    <div id="booth-container">
+        
+        <div class="top-bar">
+            <!-- Back Button -->
+            <a href="index.html" id="back-button">
+                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+            </a>
+        </div>
+
+        <video id="input-video" class="input_video" playsinline autoplay muted></video>
+        <canvas id="output-canvas"></canvas>
+        <div id="countdown"></div>
+        <div id="flash"></div>
+
+        <!-- Controls -->
+        <div id="controls">
+            <!-- Swap Camera Button -->
+            <button class="glass-btn btn-small" id="btn-swap" onclick="toggleCamera()">
+                <i data-lucide="switch-camera" style="width: 20px; height: 20px;"></i>
+            </button>
+
+            <!-- Capture Photo Button -->
+            <button class="glass-btn btn-action photo" id="btn-capture" onclick="startPhotoCountdown()">
+                <i data-lucide="camera" style="width: 28px; height: 28px;"></i>
+            </button>
+
+            <!-- Toggle Video Button -->
+            <button class="glass-btn btn-action video" id="btn-video" onclick="toggleVideoRecording()">
+                <i data-lucide="video" style="width: 28px; height: 28px;"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal">
+        <img id="result-img" class="result-media" src="" alt="Captured Photo">
+        <video id="result-video" class="result-media" controls autoplay loop playsinline></video>
+        
+        <div class="modal-actions">
+            <button class="action-btn secondary" onclick="closeModal()">
+                <i data-lucide="trash-2" style="width: 20px; height: 20px;"></i> Discard
+            </button>
+            <button class="action-btn highlight" id="btn-share" onclick="shareMedia()">
+                <i data-lucide="share-2" style="width: 20px; height: 20px;"></i> Share
+            </button>
+            <button class="action-btn secondary" onclick="downloadMedia()">
+                <i data-lucide="download" style="width: 20px; height: 20px;"></i> Save
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Icons
+lucide.createIcons();
+
+// DOM Elements
+const videoElement = document.getElementById('input-video');
+const canvasElement = document.getElementById('output-canvas');
+const canvasCtx = canvasElement.getContext('2d');
+const loader = document.getElementById('loader');
+const countdownEl = document.getElementById('countdown');
+const flashEl = document.getElementById('flash');
+const resultModal = document.getElementById('result-modal');
+const resultImg = document.getElementById('result-img');
+const resultVideo = document.getElementById('result-video');
+const btnVideo = document.getElementById('btn-video');
+const btnShare = document.getElementById('btn-share');
+
+// Hidden canvas for recording the cropped area
+const recordingCanvas = document.createElement('canvas');
+const recordingCtx = recordingCanvas.getContext('2d');
+
+// --- APP STATE & CONFIGURATION ---
+let isCapturing = false;
+let isRecording = false;
+let isRendering = true; // Controls the render loop
+let cropInfo = { x: 0, y: 0, w: 0, h: 0 }; 
+const TARGET_ASPECT = 4 / 5; // Standard Portrait Ratio
+
+// Media Storage
+let currentMediaType = 'image'; 
+let currentMediaBlob = null;
+let currentVideoExt = 'mp4'; 
+
+// Video Recording Variables
+let mediaRecorder;
+let recordedChunks = [];
+let currentFacingMode = 'user'; 
+let currentStream = null;
+
+// --- SINGLE BRAND FRAME SETUP ---
+const brandFrame = new Image();
+brandFrame.crossOrigin = "anonymous";
+brandFrame.src = "assets/Botho.png"; // Your fixed RC Beauty & Bakes frame
+// --- Camera Setup & Swap Logic ---
+async function startCamera(facingMode) {
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+    }
+
+    try {
+        currentStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: facingMode,
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: true
+        });
+        
+        videoElement.srcObject = currentStream;
+        videoElement.play();
+        
+    } catch (err) {
+        console.error("Camera/Mic access error:", err);
+        loader.innerHTML = "<p>Camera/Mic access denied or error.</p>";
+    }
+}
+
+function toggleCamera() {
+    if (isCapturing || isRecording) return;
+    currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+    loader.style.display = 'flex';
+    loader.style.opacity = '1';
+    startCamera(currentFacingMode);
+}
+
+// --- Render Loop ---
+function renderLoop() {
+    if (!isRendering) return; // Pauses processing when modal is open
+
+    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+        
+        if (loader.style.opacity !== '0') {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.style.display = 'none', 400);
+        }
+
+        if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+        }
+
+        const w = canvasElement.width;
+        const h = canvasElement.height;
+        const screenAspect = w / h;
+
+        if (screenAspect > TARGET_ASPECT) {
+            cropInfo.h = h;
+            cropInfo.w = h * TARGET_ASPECT;
+            cropInfo.x = (w - cropInfo.w) / 2;
+            cropInfo.y = 0;
+        } else {
+            cropInfo.w = w;
+            cropInfo.h = w / TARGET_ASPECT;
+            cropInfo.x = 0;
+            cropInfo.y = (h - cropInfo.h) / 2.5; 
+        }
+
+        // Draw Base Background
+        canvasCtx.fillStyle = '#000';
+        canvasCtx.fillRect(0, 0, w, h);
+
+        // Draw Video
+        canvasCtx.save();
+        if (currentFacingMode === 'user') {
+            canvasCtx.translate(w, 0);
+            canvasCtx.scale(-1, 1);
+        }
+        canvasCtx.drawImage(videoElement, 0, 0, w, h);
+        canvasCtx.restore(); 
+        
+        // Draw crop dimming & frame
+        drawCropOverlay(w, h);
+        if (brandFrame.complete && brandFrame.naturalHeight !== 0) {
+            canvasCtx.drawImage(brandFrame, cropInfo.x, cropInfo.y, cropInfo.w, cropInfo.h);
+        }
+
+        // If recording, copy JUST the cropped section to our hidden recording canvas
+        if (isRecording) {
+            recordingCtx.drawImage(
+                canvasElement, 
+                cropInfo.x, cropInfo.y, cropInfo.w, cropInfo.h, 
+                0, 0, cropInfo.w, cropInfo.h 
+            );
+        }
+    }
+    requestAnimationFrame(renderLoop);
+}
+
+function drawCropOverlay(w, h) {
+    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.85)'; 
+    if (cropInfo.y > 0) canvasCtx.fillRect(0, 0, w, cropInfo.y);
+    if (cropInfo.y + cropInfo.h < h) canvasCtx.fillRect(0, cropInfo.y + cropInfo.h, w, h - (cropInfo.y + cropInfo.h));
+    if (cropInfo.x > 0) canvasCtx.fillRect(0, cropInfo.y, cropInfo.x, cropInfo.h);
+    if (cropInfo.x + cropInfo.w < w) canvasCtx.fillRect(cropInfo.x + cropInfo.w, cropInfo.y, w - (cropInfo.x + cropInfo.w), cropInfo.h);
+    
+    if(!isRecording) {
+        canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        canvasCtx.lineWidth = 1;
+        canvasCtx.strokeRect(cropInfo.x, cropInfo.y, cropInfo.w, cropInfo.h);
+    }
+}
+
+// --- Photo Workflow ---
+function startPhotoCountdown() {
+    if (isCapturing || isRecording) return;
+    isCapturing = true;
+    
+    let count = 3;
+    countdownEl.style.display = 'block';
+    countdownEl.innerText = count;
+
+    const timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+            countdownEl.innerText = count;
+        } else {
+            clearInterval(timer);
+            countdownEl.style.display = 'none';
+            takePhoto();
+        }
+    }, 1000);
+}
+
+function takePhoto() {
+    flashEl.style.opacity = '1';
+    setTimeout(() => flashEl.style.opacity = '0', 100);
+    
+    try {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = cropInfo.w;
+        tempCanvas.height = cropInfo.h;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        tempCtx.drawImage(
+            canvasElement, 
+            cropInfo.x, cropInfo.y, cropInfo.w, cropInfo.h, 
+            0, 0, cropInfo.w, cropInfo.h 
+        );
+
+        tempCanvas.toBlob((blob) => {
+            currentMediaBlob = blob;
+            const objectURL = URL.createObjectURL(blob);
+            
+            resultImg.src = objectURL;
+            resultImg.style.display = 'block';
+            resultVideo.style.display = 'none';
+            currentMediaType = 'image';
+            
+            btnShare.style.display = 'flex';
+            
+            isRendering = false; // Pause rendering
+            resultModal.classList.add('open');
+            isCapturing = false;
+        }, 'image/png');
+
+    } catch (err) {
+        console.error(err);
+        alert("Capture error.");
+        isCapturing = false;
+    }
+}
+
+// --- Video Recording Workflow ---
+function toggleVideoRecording() {
+    if (isCapturing) return;
+
+    if (isRecording) {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+        return;
+    }
+    
+    try {
+        recordedChunks = [];
+        
+        recordingCanvas.width = cropInfo.w;
+        recordingCanvas.height = cropInfo.h;
+        
+        const canvasStream = recordingCanvas.captureStream(30); 
+        let tracks = [...canvasStream.getVideoTracks()];
+
+        if (currentStream) {
+            const audioTracks = currentStream.getAudioTracks();
+            if (audioTracks.length > 0) tracks.push(audioTracks[0]);
+        }
+
+        const combinedStream = new MediaStream(tracks);
+
+        let mimeType = 'video/webm';
+        if (MediaRecorder.isTypeSupported('video/mp4')) {
+            mimeType = 'video/mp4';
+        }
+
+        mediaRecorder = new MediaRecorder(combinedStream, { mimeType: mimeType });
+
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = finishRecording;
+        mediaRecorder.start();
+        isRecording = true;
+
+        btnVideo.classList.add('recording');
+        btnVideo.innerHTML = '<i data-lucide="square" style="width: 24px; height: 24px; fill: white;"></i>';
+        lucide.createIcons();
+
+    } catch(e) {
+        console.error("Recording failed", e);
+        alert("Video recording is not supported on this browser.");
+    }
+}
+
+function finishRecording() {
+    isRecording = false;
+    
+    btnVideo.classList.remove('recording');
+    btnVideo.innerHTML = '<i data-lucide="video" style="width: 28px; height: 28px;"></i>';
+    lucide.createIcons();
+
+    currentMediaBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+    const videoUrl = URL.createObjectURL(currentMediaBlob);
+
+    resultVideo.src = videoUrl;
+    resultVideo.style.display = 'block';
+    resultImg.style.display = 'none';
+    currentMediaType = 'video';
+    currentVideoExt = 'mp4'; 
+
+    btnShare.style.display = 'flex';
+    
+    isRendering = false; // Pause rendering
+    resultModal.classList.add('open');
+}
+
+// --- Download & Share ---
+function downloadMedia() {
+    const link = document.createElement('a');
+    const ext = currentMediaType === 'image' ? 'png' : currentVideoExt;
+    
+    link.download = `rc-beauty-${Date.now()}.${ext}`;
+    link.href = URL.createObjectURL(currentMediaBlob);
+    
+    link.click();
+    closeModal();
+}
+
+async function shareMedia() {
+    if (!navigator.share || !navigator.canShare) {
+        alert("Sharing is not supported on this device/browser.");
+        return;
+    }
+
+    try {
+        const ext = currentMediaType === 'image' ? 'png' : currentVideoExt;
+        const mime = currentMediaType === 'image' ? 'image/png' : 'video/mp4';
+        
+        const file = new File([currentMediaBlob], `rc-beauty-${Date.now()}.${ext}`, { type: mime });
+
+        const shareData = {
+            title: '',
+            text: '',
+            files: [file]
+        };
+
+        if (navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+        } else {
+            throw new Error('NotAllowedError'); 
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.warn('Share blocked:', error);
+            alert("Direct video sharing is blocked. We are saving it so you can share it straight from your gallery!");
+            downloadMedia(); 
+        }
+    }
+}
+
+function closeModal() {
+    resultModal.classList.remove('open');
+    if (currentMediaType === 'video') {
+        resultVideo.pause();
+        resultVideo.src = ""; 
+    }
+    
+    isRendering = true; // Resume rendering
+    requestAnimationFrame(renderLoop);
+}
+
+// --- Initialization ---
+videoElement.addEventListener('loadeddata', () => {
+    requestAnimationFrame(renderLoop);
+});
+
+startCamera(currentFacingMode);
+    </script>
+</body>
+</html>
